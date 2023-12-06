@@ -1,0 +1,16 @@
+sqlalchemy~=2.0.23
+fastapi~=0.104.1
+uvicorn~=0.24.0
+python-dotenv
+alembic~=1.13.0
+greenlet~=3.0.1
+pydantic_settings~=2.0.3
+asyncpg~=0.29.0
+python-jose~=3.3.0
+passlib[bcrypt]~=1.7.4
+bcrypt~=4.1.1
+python-multipart~=0.0.6
+
+-r GoAlgoMlPart/requirements.txt
+
+pydantic~=2.5.2
