@@ -1,8 +1,9 @@
 .idea/
 .venv/
 .env
-./models/
+models/*.bin
 .vscode/
 __pycache__/
 *.log
 GoAlgoMLPart
+catboost_info/

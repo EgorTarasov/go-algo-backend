@@ -27,3 +27,6 @@ class User(Base, TimestampMixin):
         backref="user"
         # secondaryjoin="user_algorithms.user_id == users.id",
     )
+
+    def __repr__(self) -> str:
+        return f"<User {self.id} {self.first_name} {self.last_name} {self.email}>"

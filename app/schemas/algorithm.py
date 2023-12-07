@@ -16,6 +16,7 @@ class RiskManagementParameters(BaseModel):
     sum_for_sell_rur: float = Field(..., description="Сумма для продажи в рублях")
     sum_for_sell_num: float = Field(..., description="Сумма для продажи в количестве")
     sell_all: bool = Field(..., description="Продавать все")
+    
 
 
 class AlgorithmBase(BaseModel):

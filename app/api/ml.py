@@ -34,7 +34,9 @@ GET /a/ml/{UUID}
 import time
 import typing as tp
 import logging
+from unittest import result
 import uuid
+import lightgbm
 
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
@@ -44,13 +46,71 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from app.dependencies import get_current_user, UserTokenData
 from app.dependencies.db import get_session
-from app.auth.security import encode_uuid3
 from app.schemas import algorithm
 from app.models import Algorithm, AlgorithmVersion, AlgorithmBacktest, UserAlgorithm
 from app.models import User
-from GoAlgoMlPart import TrainModel
+from GoAlgoMlPart.TrainModel import TrainModel
+from GoAlgoMlPart.TrainIf import TrainIf
+from GoAlgoMlPart.ModelInference import ModelInference
+from app.schemas.features import MlFeatures
 
 router: tp.Final[APIRouter] = APIRouter(prefix="/ml")
+
+
+@router.get("/test")
+async def test():
+
+    start = time.perf_counter()
+    features = {
+        "lags": {"features": ["open", "close", "target"], "period": [1, 2, 3]},
+        "cma": {"features": ["open", "close", "volume"]},
+        "sma": {"features": ["open", "close", "volume"], "period": [2, 3, 4]},
+        "ema": {"features": ["open", "close", "volume"], "period": [2, 3, 4, 10, 15]},
+        "green_candles_ratio": {"period": [2]},
+        "red_candles_ratio": {"period": [2]},
+        "rsi": False,
+        "macd": False,  # только (12, 26)
+        "bollinger": False,
+        "time_features": {
+            "month": True,
+            "week": True,
+            "day_of_month": True,
+            "day_of_week": True,
+            "hour": True,
+            "minute": True,
+        },
+        "anomal_value": True,
+        "anomal_price_changing": True,
+    }
+    train = TrainIf(features=features, ticker="SBER", timeframe="1m")
+    train.train()
+    return time.perf_counter() - start
+
+
+@router.post("/inference/{model_uuid}/{period}")
+async def test_inference(
+    model_id: uuid.UUID,
+    period: tp.Literal["1m", "10m", "60m"] = "10m",
+    user: UserTokenData = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+):
+    stmt = (
+        sa.select(Algorithm)
+        .options(orm.joinedload(Algorithm.versions))
+        .where(Algorithm.uuid == model_id)
+    )
+    db_algorithm: Algorithm | None = (await db.execute(stmt)).unique().scalar()
+    if db_algorithm is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    inference = ModelInference(
+        model_id=f"./models/{str(model_id)}",
+        ticker=db_algorithm.sec_id,
+        features=db_algorithm.versions[-1].features,
+        timeframe=period,
+    )
+    df, result = inference.get_pred_one_candle()
+    return int(result)
 
 
 @router.get("/")
@@ -96,7 +156,9 @@ async def create_algorithm(
     )
     db_user: User | None = (await db.execute(stmt)).unique().scalar()
     if db_user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not found"
+        )
     model_uuid = uuid.uuid4()
     db_model: Algorithm = Algorithm(
         name=payload.name, sec_id=payload.sec_id, uuid=model_uuid
@@ -111,7 +173,7 @@ async def create_algorithm(
     )
 
 
-@router.get("/{algorithm_uuid}")
+@router.get("/d/{algorithm_uuid}")
 async def get_algorithm(
     algorithm_uuid: uuid.UUID,
     user: UserTokenData = Depends(get_current_user),
@@ -136,7 +198,7 @@ async def get_algorithm(
     return algorithm.AlgorithmDto.model_validate(db_algorithm)
 
 
-@router.post("/{algorithm_uuid}")
+@router.post("/d/{algorithm_uuid}")
 async def update_algorithm(
     algorithm_uuid: uuid.UUID,
     payload: algorithm.AlgorithmVersionUpdate,
@@ -172,6 +234,7 @@ async def update_algorithm(
 
 
 async def train_model(
+    db: AsyncSession,
     model_id: uuid.UUID,
     payload: algorithm.AlgorithmVersionDto,
     ticker: str = "SBER",
@@ -185,17 +248,32 @@ async def train_model(
     )
     logging.info(f"ml training start: <model_id={model_id}>")
     start = time.perf_counter()
-    model.train()
+    new_features: MlFeatures = MlFeatures.model_validate(model.train())
+    print(type(new_features), type(new_features.order))
+    print(new_features.order)
+    stmt = (
+        sa.select(Algorithm)
+        .options(orm.joinedload(Algorithm.versions))
+        .where(Algorithm.uuid == model_id)
+    )
+
+    db_model: Algorithm | None = (await db.execute(stmt)).unique().scalar()
+    if db_model is None:
+        logging.warning("Model not found")
+        raise Exception("not found")
+    db_model.versions[-1].features = new_features.model_dump()
+    db.add(db_model)
+    await db.commit()
     logging.info(
         f"ml training finished: <model_id={model_id}, time={time.perf_counter() - start}>"
     )
 
 
-@router.post("/{algorithm_uuid}/train/{period}")
+@router.post("/d/{algorithm_uuid}/train/{period}")
 async def run_backtest(
     algorithm_uuid: uuid.UUID,
     background_tasks: BackgroundTasks,
-    period: tp.Literal["1m", "10m"] = "1m",
+    period: tp.Literal["1m", "10m", "60m"] = "1m",
     user: UserTokenData = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
 ):
@@ -213,7 +291,7 @@ async def run_backtest(
         algorithm.AlgorithmVersionDto.model_validate(db_algorithm.versions[-1])
     )
     background_tasks.add_task(
-        train_model, algorithm_uuid, payload, db_algorithm.sec_id, period
+        train_model, db, algorithm_uuid, payload, db_algorithm.sec_id, period
     )
 
     return payload

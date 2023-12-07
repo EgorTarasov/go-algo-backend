@@ -5,10 +5,9 @@ import sqlalchemy as sa
 import sqlalchemy.dialects.postgresql as pg
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-
+from app.schemas.features import MlFeatures
 from .base import Base, TimestampMixin
 from .user import User
-from app.auth.security import encode_uuid3
 
 
 class Algorithm(Base, TimestampMixin):

@@ -33,7 +33,7 @@ eatures = {
 """
 
 import typing as tp
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 Features = tp.Literal["open", "close", "high", "low", "value", "volume", "target"]
 Period = tp.Literal[1, 2, 3, 4, 10, 14, 20, 50, 100]
@@ -102,3 +102,7 @@ class MlFeatures(BaseModel):
     bollinger: Bollinger | bool = False
     time_features: TimeFeatures
     model: Model
+    order: list[str] | None = None
+    threshold: float | None = None
+
+    model_config = ConfigDict(from_attributes=True)

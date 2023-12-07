@@ -3,6 +3,11 @@ project_dit = .
 dev:
 	docker compose up postgres -d --remove-orphans
 
+.PHONY: run-dev
+run-dev: dev
+	uvicorn main:app --reload
+
+
 .PHONY: dev-down
 dev-down:
 	docker compose down --remove-orphans --volumes
