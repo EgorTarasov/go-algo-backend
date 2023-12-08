@@ -5,7 +5,7 @@ dev:
 
 .PHONY: run-dev
 run-dev: dev
-	uvicorn main:app --reload
+	uvicorn main:app 
 
 
 

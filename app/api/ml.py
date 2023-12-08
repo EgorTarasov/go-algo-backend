@@ -31,6 +31,7 @@ GET /a/ml/{UUID}
 
 
 """
+import datetime
 import time
 import typing as tp
 import logging
@@ -49,7 +50,7 @@ from app.schemas import algorithm
 from app.models import Algorithm, AlgorithmVersion, AlgorithmBacktest, UserAlgorithm
 from app.models import User
 from GoAlgoMlPart.TrainModel import TrainModel
-
+from GoAlgoMlPart.NewBacktest import NewBacktest
 from GoAlgoMlPart.ModelInference import ModelInference
 from app.schemas.features import MlFeatures
 
@@ -178,7 +179,7 @@ async def get_algorithm(
     algorithm_uuid: uuid.UUID,
     user: UserTokenData = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
-):
+) -> algorithm.AlgorithmDto:
     """GET /a/ml/{UUID}
     Получения информации об Алгоритме
         - UUID
@@ -198,10 +199,11 @@ async def get_algorithm(
     return algorithm.AlgorithmDto.model_validate(db_algorithm)
 
 
-@router.post("/d/{algorithm_uuid}")
+@router.post("/d/{algorithm_uuid}/{version_uuid}")
 async def update_algorithm(
-    algorithm_uuid: uuid.UUID,
+    version_uuid: uuid.UUID,
     payload: algorithm.AlgorithmVersionUpdate,
+    algorithm_uuid: uuid.UUID | None = None,
     user: UserTokenData = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
 ):
@@ -209,6 +211,7 @@ async def update_algorithm(
     Сохранение изменений по кнопке сохраняет (создает новую версию):
         - features
         - management
+        - nodes: штука для кубиков
     """
     stmt = (
         sa.select(Algorithm)
@@ -218,14 +221,64 @@ async def update_algorithm(
     db_algorithm = (await db.execute(stmt)).unique().scalar()
     if db_algorithm is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    db_algorithm.versions.append(
-        AlgorithmVersion(
-            features=payload.features.model_dump() if payload.features else {},
-            management=payload.management.model_dump(),
-            nodes=payload.nodes,
-            algorithm_id=db_algorithm.id,
+    if version_uuid is None:
+        db_algorithm.versions.append(
+            AlgorithmVersion(
+                uuid=version_uuid,
+                features=payload.features.model_dump() if payload.features else {},
+                management=payload.management.model_dump(),
+                nodes=payload.nodes,
+                algorithm_id=db_algorithm.id,
+            )
         )
-    )
+    versions = [
+        index
+        for index, obj in enumerate(db_algorithm.versions)
+        if obj.uuid == version_uuid
+    ]
+    print(versions)
+    if len(versions) == 0:
+        db_algorithm.versions.append(
+            AlgorithmVersion(
+                uuid=version_uuid,
+                features=payload.features.model_dump() if payload.features else {},
+                management=payload.management.model_dump(),
+                nodes=payload.nodes,
+                algorithm_id=db_algorithm.id,
+            )
+        )
+    else:
+        index = versions[0]
+        db_algorithm.versions[index].features = (
+            payload.features.model_dump() if payload.features else {}
+        )
+        db_algorithm.versions[index].management = payload.management.model_dump()
+        db_algorithm.versions[index].nodes = payload.nodes if payload.nodes else []
+
+    # elif index := [
+    #     index
+    #     for index, obj in enumerate(db_algorithm.versions)
+    #     if version_uuid == obj.uuid
+    # ]:
+    #     print(index)
+    #     if index:
+    #         index = index[0]
+    #         db_algorithm.versions[index].features = (
+    #             payload.features.model_dump() if payload.features else {}
+    #         )
+    #         db_algorithm.versions[index].management = payload.management.model_dump()
+    #         db_algorithm.versions[index].nodes = payload.nodes if payload.nodes else []
+    #     else:
+    #         db_algorithm.versions.append(
+    #             AlgorithmVersion(
+    #                 uuid=version_uuid,
+    #                 features=payload.features.model_dump() if payload.features else {},
+    #                 management=payload.management.model_dump(),
+    #                 nodes=payload.nodes,
+    #                 algorithm_id=db_algorithm.id,
+    #             )
+    #         )
+
     await db.commit()
     await db.refresh(db_algorithm)
     return algorithm.AlgorithmDto.model_validate(db_algorithm)
@@ -240,12 +293,13 @@ async def train_model(
     payload: algorithm.AlgorithmVersionDto,
     ticker: str = "SBER",
     period: tp.Literal["1m", "5m", "10m", "30m", "60m"] = "1m",
-):
+) -> str:
+    model_path = f"./models/{str(model_id)}"
     model = TrainModel(
         ticker=ticker,
         timeframe=period,
         features=payload.features.model_dump(),
-        model_id=f"./models/{str(model_id)}",
+        model_id=model_path,
     )
     logging.info(f"ml training start: <model_id={model_id}>")
     start = time.perf_counter()
@@ -267,13 +321,15 @@ async def train_model(
     logging.info(
         f"ml training finished: <model_id={model_id}, time={time.perf_counter() - start}>"
     )
+    return model_path
 
 
-@router.post("/d/{algorithm_uuid}/train/{period}")
+@router.post("/d/{algorithm_uuid}/{version_uuid}/backtest/{period}")
 async def run_backtest(
     algorithm_uuid: uuid.UUID,
+    version_uuid: uuid.UUID,
     background_tasks: BackgroundTasks,
-    period: tp.Literal["1m", "5m", "10m", "30m", "60m"] = "1m",
+    period: tp.Literal["1m", "10m", "60m"] = "1m",
     user: UserTokenData = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
 ):
@@ -286,15 +342,56 @@ async def run_backtest(
 
     if db_algorithm is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    logging.info(f"ml training: <user={user.user_id} algorithm={db_algorithm.id}>")
-    payload: algorithm.AlgorithmVersionDto = (
-        algorithm.AlgorithmVersionDto.model_validate(db_algorithm.versions[-1])
-    )
-    background_tasks.add_task(
-        train_model, db, algorithm_uuid, payload, db_algorithm.sec_id, period
+    version: AlgorithmVersion = [
+        obj for obj in db_algorithm.versions if obj.uuid == version_uuid
+    ][0]
+    """
+      "management": {
+    "balance": 0,
+    "max_balance_for_trading": 0,
+    "min_balance_for_trading": 0,
+    "part_of_balance_for_buy": 0,
+    "sum_for_buy_rur": 0,
+    "sum_for_buy_num": 0,
+    "part_of_balance_for_sell": 0,
+    "sum_for_sell_rur": 0,
+    "sum_for_sell_num": 0,
+    "sell_all": true
+  }
+
+    """
+    model_path = await train_model(
+        db,
+        algorithm_uuid,
+        algorithm.AlgorithmVersionDto.model_validate(version),
+        db_algorithm.sec_id,
+        period,
     )
 
-    return payload
+    backtest = NewBacktest(
+        "ml_model",
+        model_path,
+        db_algorithm.sec_id,
+        period,
+        0.1,
+        6,
+        version.management["balance"],
+        1.01,
+        model_features=version.features,
+    )
+    outp = backtest.do_backtest(
+        html_save_path=f"./backtests/{version.uuid}_{datetime.datetime.now().isoformat()}.html"
+    )
+
+    logging.info(f"ml training: <user={user.user_id} algorithm={version.uuid}>")
+
+    return {"status": "ok"}
+
+    # payload: algorithm.AlgorithmVersionDto = (
+    #     algorithm.AlgorithmVersionDto.model_validate(db_algorithm.versions[-1])
+    # )
+
+    # return payload
 
 
 # @router.post("/{algorithm_uuid}/backtest")
@@ -327,31 +424,3 @@ async def run_backtest(
 
 
 #
-#
-# @router.post("/create/{sec_id}/{period}")
-# async def create_model(
-#     features: MlFeatures,
-#     background_tasks: BackgroundTasks,
-#     user: UserTokenData = Depends(get_current_user),
-#     sec_id: str = "SBER",
-#     period: tp.Literal["1m", "10m"] = "1m",
-#     db: AsyncSession = Depends(get_session),
-# ):
-#     db_model: MlAlgorithm = MlAlgorithm(
-#         name="Test",
-#         sec_id=sec_id,
-#         period=period,
-#     )
-#     db_model.creator_id = user.user_id
-#     db.add(db_model)
-#     await db.commit()
-#     await db.refresh(db_model)
-#     # TODO: вынести в отдельную функцию
-#     model_id = uuid.uuid5(
-#         uuid.NAMESPACE_DNS, str(db_model.id) + str(db_model.created_at)
-#     )
-#
-#     background_tasks.add_task(train_model, str(model_id), features, sec_id, period)
-#     # создаем модель в базе данных
-#
-#     return {"id": model_id, "period": period, "features": features}

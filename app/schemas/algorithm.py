@@ -40,6 +40,7 @@ class AlgorithmVersionUpdate(AlgorithmVersionBase):
 
 class AlgorithmVersionDto(BaseModel):
     id: int
+    uuid: UUID
     features: MlFeatures = Field(...)
     management: RiskManagementParameters | None = None
     nodes: tp.Any | None = None

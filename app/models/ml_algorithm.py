@@ -58,14 +58,15 @@ class UserAlgorithm(Base):
 
 class AlgorithmVersion(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(autoincrement=True, primary_key=True)
+    uuid: Mapped[str] = mapped_column(sa.UUID(as_uuid=True), unique=True, index=True)
     features: Mapped[dict[str, tp.Any]] = mapped_column(pg.JSON, nullable=False)
     management: Mapped[dict[str, tp.Any]] = mapped_column(pg.JSON, nullable=True)
-    nodes: Mapped[dict[str, tp.Any]] = mapped_column(pg.JSON, nullable=True)
+    nodes: Mapped[list[dict[str, tp.Any]]] = mapped_column(pg.JSON, nullable=True)
     algorithm_id: Mapped[int] = mapped_column(
         sa.ForeignKey(Algorithm.id, ondelete="CASCADE")
     )
     # algorithm: Mapped[Algorithm] = relationship(Algorithm.id, backref="versions")
-    backtest: Mapped["AlgorithmBacktest"] = relationship(
+    backtest: Mapped[list["AlgorithmBacktest"]] = relationship(
         "AlgorithmBacktest", backref="version"
     )
 
