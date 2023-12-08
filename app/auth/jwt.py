@@ -28,7 +28,7 @@ class JWTEncoder:
     @staticmethod
     def create_jwt_token(
         data: dict[str, str | dt.datetime | int],
-        expires_delta: dt.timedelta = dt.timedelta(minutes=30),
+        expires_delta: dt.timedelta = dt.timedelta(days=1),
     ):
         to_encode = data.copy()
         to_encode["exp"] = dt.datetime.utcnow() + expires_delta

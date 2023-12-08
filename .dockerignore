@@ -1,0 +1,7 @@
+models/
+*.log
+__pycache__
+.idea/  
+.vscode/
+.mypy_cache/
+catboost_info/

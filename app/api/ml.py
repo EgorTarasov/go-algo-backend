@@ -34,9 +34,8 @@ GET /a/ml/{UUID}
 import time
 import typing as tp
 import logging
-from unittest import result
 import uuid
-import lightgbm
+
 
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
@@ -50,7 +49,7 @@ from app.schemas import algorithm
 from app.models import Algorithm, AlgorithmVersion, AlgorithmBacktest, UserAlgorithm
 from app.models import User
 from GoAlgoMlPart.TrainModel import TrainModel
-from GoAlgoMlPart.TrainIf import TrainIf
+
 from GoAlgoMlPart.ModelInference import ModelInference
 from app.schemas.features import MlFeatures
 
@@ -82,8 +81,8 @@ async def test():
         "anomal_value": True,
         "anomal_price_changing": True,
     }
-    train = TrainIf(features=features, ticker="SBER", timeframe="1m")
-    train.train()
+    # train = Еfeatures=features, ticker="SBER", timeframe="1m")
+    # train.train()
     return time.perf_counter() - start
 
 
@@ -108,6 +107,7 @@ async def test_inference(
         ticker=db_algorithm.sec_id,
         features=db_algorithm.versions[-1].features,
         timeframe=period,
+        api_data="",
     )
     df, result = inference.get_pred_one_candle()
     return int(result)
@@ -220,8 +220,9 @@ async def update_algorithm(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     db_algorithm.versions.append(
         AlgorithmVersion(
-            features=payload.features.model_dump(),
+            features=payload.features.model_dump() if payload.features else {},
             management=payload.management.model_dump(),
+            nodes=payload.nodes,
             algorithm_id=db_algorithm.id,
         )
     )
@@ -238,7 +239,7 @@ async def train_model(
     model_id: uuid.UUID,
     payload: algorithm.AlgorithmVersionDto,
     ticker: str = "SBER",
-    period: tp.Literal["1m", "10m"] = "1m",
+    period: tp.Literal["1m", "5m", "10m", "30m", "60m"] = "1m",
 ):
     model = TrainModel(
         ticker=ticker,
@@ -249,8 +250,7 @@ async def train_model(
     logging.info(f"ml training start: <model_id={model_id}>")
     start = time.perf_counter()
     new_features: MlFeatures = MlFeatures.model_validate(model.train())
-    print(type(new_features), type(new_features.order))
-    print(new_features.order)
+
     stmt = (
         sa.select(Algorithm)
         .options(orm.joinedload(Algorithm.versions))
@@ -273,7 +273,7 @@ async def train_model(
 async def run_backtest(
     algorithm_uuid: uuid.UUID,
     background_tasks: BackgroundTasks,
-    period: tp.Literal["1m", "10m", "60m"] = "1m",
+    period: tp.Literal["1m", "5m", "10m", "30m", "60m"] = "1m",
     user: UserTokenData = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
 ):

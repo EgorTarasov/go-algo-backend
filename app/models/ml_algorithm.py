@@ -60,7 +60,7 @@ class AlgorithmVersion(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(autoincrement=True, primary_key=True)
     features: Mapped[dict[str, tp.Any]] = mapped_column(pg.JSON, nullable=False)
     management: Mapped[dict[str, tp.Any]] = mapped_column(pg.JSON, nullable=True)
-
+    nodes: Mapped[dict[str, tp.Any]] = mapped_column(pg.JSON, nullable=True)
     algorithm_id: Mapped[int] = mapped_column(
         sa.ForeignKey(Algorithm.id, ondelete="CASCADE")
     )

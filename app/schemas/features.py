@@ -1,5 +1,5 @@
 """
-eatures = {
+features = {
 'lags': {'features': ['open', 'close', 'high', 'low', 'value', 'volume', 'target'],
                      'period': [1, 2, 3, 4, 10, 14, 20, 50, 100]},
 
@@ -35,50 +35,50 @@ eatures = {
 import typing as tp
 from pydantic import BaseModel, ConfigDict
 
-Features = tp.Literal["open", "close", "high", "low", "value", "volume", "target"]
-Period = tp.Literal[1, 2, 3, 4, 10, 14, 20, 50, 100]
-MacdPeriod = tp.Literal[12, 26]
+Features = tp.Literal[None, "open", "close", "high", "low", "value", "volume", "target"]
+Period = tp.Literal[None, "1", "2", "3", "4", "10", "14", "20", "50", "100"]
+MacdPeriod = tp.Literal[None, "12", "26"]
 Model = tp.Literal["lightgbm", "catboost"]
 
 
 class Lags(BaseModel):
-    features: list[Features]
-    period: list[Period]
+    features: list[Features] | None
+    period: list[Period] | None
 
 
 class Cma(BaseModel):
-    features: list[Features]
+    features: list[Features] | None
 
 
 class Sma(BaseModel):
-    features: list[Features]
-    period: list[Period]
+    features: list[Features] | None
+    period: list[Period] | None
 
 
 class Ema(BaseModel):
-    features: list[Features]
-    period: list[Period]
+    features: list[Features] | None
+    period: list[Period] | None
 
 
 class GreenCandlesRatio(BaseModel):
-    period: list[Period]
+    period: list[Period] | None
 
 
 class RedCandlesRatio(BaseModel):
-    period: list[Period]
+    period: list[Period] | None
 
 
 class Rsi(BaseModel):
-    period: list[Period]
+    period: list[Period] | None
 
 
 class Macd(BaseModel):
-    period: list[tuple[MacdPeriod, MacdPeriod]] = [(12, 26)]
+    period: list[list[MacdPeriod]] | None
 
 
 class Bollinger(BaseModel):
-    period: Period
-    degree_of_lift: int
+    period: Period | None
+    degree_of_lift: int | None
 
 
 class TimeFeatures(BaseModel):
@@ -91,16 +91,16 @@ class TimeFeatures(BaseModel):
 
 
 class MlFeatures(BaseModel):
-    lags: Lags
-    cma: Cma
-    sma: Sma
-    ema: Ema
-    green_candles_ratio: GreenCandlesRatio
-    red_candles_ratio: RedCandlesRatio
+    lags: Lags | None = None
+    cma: Cma | None = None
+    sma: Sma | None = None
+    ema: Ema | None = None
+    green_candles_ratio: GreenCandlesRatio | None = None
+    red_candles_ratio: RedCandlesRatio | None = None
     rsi: Rsi | bool = False
     macd: Macd | bool = False
     bollinger: Bollinger | bool = False
-    time_features: TimeFeatures
+    time_features: TimeFeatures | None = None
     model: Model
     order: list[str] | None = None
     threshold: float | None = None

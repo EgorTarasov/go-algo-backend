@@ -10,6 +10,19 @@ services:
       - ".env"
     ports:
       - "5432:5432"
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: "make run"
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=postgres
+    ports:
+      - "8000:8000"
+    
 
 
 volumes:

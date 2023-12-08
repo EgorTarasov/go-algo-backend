@@ -7,8 +7,12 @@ from .features import MlFeatures
 
 class RiskManagementParameters(BaseModel):
     balance: float = Field(..., description="Баланс")
-    max_balance_for_trading: float = Field(..., description="Максимальный баланс для торговли")
-    min_balance_for_trading: float = Field(..., description="Минимальный баланс для торговли")
+    max_balance_for_trading: float = Field(
+        ..., description="Максимальный баланс для торговли"
+    )
+    min_balance_for_trading: float = Field(
+        ..., description="Минимальный баланс для торговли"
+    )
     part_of_balance_for_buy: float = Field(..., description="Доля баланса для покупки")
     sum_for_buy_rur: float = Field(..., description="Сумма для покупки в рублях")
     sum_for_buy_num: float = Field(..., description="Сумма для покупки в количестве")
@@ -16,7 +20,6 @@ class RiskManagementParameters(BaseModel):
     sum_for_sell_rur: float = Field(..., description="Сумма для продажи в рублях")
     sum_for_sell_num: float = Field(..., description="Сумма для продажи в количестве")
     sell_all: bool = Field(..., description="Продавать все")
-    
 
 
 class AlgorithmBase(BaseModel):
@@ -26,8 +29,9 @@ class AlgorithmBase(BaseModel):
 
 class AlgorithmVersionBase(BaseModel):
 
-    features: MlFeatures = Field(...)
+    features: MlFeatures | None = Field(...)
     management: RiskManagementParameters = Field(...)
+    nodes: list[dict[str, tp.Any]] | None = Field(...)
 
 
 class AlgorithmVersionUpdate(AlgorithmVersionBase):
@@ -38,6 +42,8 @@ class AlgorithmVersionDto(BaseModel):
     id: int
     features: MlFeatures = Field(...)
     management: RiskManagementParameters | None = None
+    nodes: tp.Any | None = None
+
     created_at: tp.Optional[tp.Any] = None
     updated_at: tp.Optional[tp.Any] = None
 

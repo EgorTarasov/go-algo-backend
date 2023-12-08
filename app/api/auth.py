@@ -35,7 +35,7 @@ async def login(
             .where(User.email == form_data.username)
         )
         db_user: User | None = (await db.execute(stmt)).unique().scalar_one_or_none()
-        print(db_user)
+
         if db_user is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
@@ -57,7 +57,6 @@ async def login(
                 detail="Incorrect email or password",
             )
     except Exception as e:
-        print(e)
         logging.error(e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
