@@ -19,6 +19,7 @@ def create_app(settings: Settings) -> FastAPI:
         version="0.0.1",
         description="Rest api for frontend Application",
         docs_url=f"{settings.api_prefix}/docs",
+        openapi_url=f"{settings.api_prefix}/openapi.json",
     )
     app.add_middleware(
         CORSMiddleware,

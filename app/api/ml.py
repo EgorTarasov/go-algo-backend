@@ -376,7 +376,7 @@ async def run_backtest(
         0.1,
         6,
         version.management["balance"],
-        1.01,
+        2,
         model_features=version.features,
     )
     outp = backtest.do_backtest(
