@@ -37,6 +37,7 @@ import time
 import typing as tp
 import logging
 import uuid
+import os
 
 
 import sqlalchemy as sa
@@ -293,6 +294,16 @@ async def train_model(
     period: tp.Literal["1m", "5m", "10m", "30m", "60m"] = "1m",
 ) -> str:
     model_path = f"./models/{str(model_id)}"
+    if type(payload.features) != algorithm.MlFeatures:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="invalid algo features",
+        )
+    final_path = f"{model_path}_{ticker}_{period}_{payload.features.model}.bin"
+
+    if os.path.exists(final_path):
+        os.remove(final_path)
+
     model = TrainModel(
         ticker=ticker,
         timeframe=period,
@@ -407,41 +418,3 @@ async def run_backtest(
         "status": f"/api/static/{version.uuid}.html",
         "data": algorithm.BacktestResults.model_validate(outp.to_dict()),
     }
-
-    # payload: algorithm.AlgorithmVersionDto = (
-    #     algorithm.AlgorithmVersionDto.model_validate(db_algorithm.versions[-1])
-    # )
-
-    # return payload
-
-
-# @router.post("/{algorithm_uuid}/backtest")
-# async def run_backtest(
-#     algorithm_uuid: uuid.UUID,
-#     user: UserTokenData = Depends(get_current_user),
-#     db: AsyncSession = Depends(get_session),
-# ):
-#     """POST /a/ml/{UUID}/backtest
-#     Запускает текущую версию модели для бэктеста и выдает id бэктеста
-#     """
-#     stmt = (
-#         sa.select(Algorithm)
-#         .options(orm.joinedload(Algorithm.versions))
-#         .where(Algorithm.uuid == algorithm_uuid)
-#     )
-#     db_algorithm = (await db.execute(stmt)).unique().scalar()
-#     if db_algorithm is None:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-#     db_algorithm.versions.append(
-#         AlgorithmVersion(
-#             features=payload.features.model_dump(),
-#             management=payload.management,
-#             algorithm_id=db_algorithm.id,
-#         )
-#     )
-#     await db.commit()
-#     await db.refresh(db_algorithm)
-#     return algorithm.AlgorithmDto.model_validate(db_algorithm)
-
-
-#
