@@ -38,6 +38,7 @@ import typing as tp
 import logging
 import uuid
 import os
+import datetime
 
 
 import sqlalchemy as sa
@@ -283,9 +284,6 @@ async def update_algorithm(
     return algorithm.AlgorithmDto.model_validate(db_algorithm)
 
 
-# TODO: выбрать формат отправки на backtest
-
-
 async def train_model(
     db: AsyncSession,
     model_id: uuid.UUID,
@@ -372,7 +370,7 @@ async def run_backtest(
 
     """
     outp: pd.Series[tp.Any]
-
+    backtest: NewBacktest
     if db_algorithm.algo_type == "ml":
 
         model_path = await train_model(
@@ -394,11 +392,10 @@ async def run_backtest(
             2,
             model_features=version.features,
         )
-        outp = backtest.do_backtest(html_save_path=f"./backtests/{version.uuid}.html")
 
         logging.info(f"ml training: <user={user.user_id} algorithm={version.uuid}>")
     elif db_algorithm.algo_type == "algo":
-        backtest = backtest = NewBacktest(
+        backtest = NewBacktest(
             "if_model",
             None,
             db_algorithm.sec_id,
@@ -410,11 +407,26 @@ async def run_backtest(
             IF_features=version.features
             # model_features=version.features,
         )
-        outp = backtest.do_backtest(html_save_path=f"./backtests/{version.uuid}.html")
+
     # outp.fillna(None)
+    html_path = (
+        f"{datetime.datetime.now().isoformat()}-{db_algorithm.uuid}-{version.uuid}.html"
+    )
+
+    outp = backtest.do_backtest(html_save_path=f"./backtests/{html_path}")
     outp = outp.replace({np.nan: None})
-    # print(outp)
+
+    result = algorithm.BacktestResults.model_validate(outp.to_dict())
+
+    db_backtest = AlgorithmBacktest(
+        version_id=version.id,
+        data=result.serialize(),
+        graph_url=html_path,
+    )
+    db.add(db_backtest)
+    await db.commit()
+
     return {
-        "status": f"/api/static/{version.uuid}.html",
-        "data": algorithm.BacktestResults.model_validate(outp.to_dict()),
+        "status": f"/api/static/{html_path}",
+        "data": result,
     }

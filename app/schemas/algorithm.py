@@ -149,3 +149,16 @@ class BacktestResults(BaseModel):
     sqn: float | None = Field(..., alias="SQN")
 
     model_config = ConfigDict(from_attributes=True)
+
+    def serialize(self) -> dict[str, tp.Any]:
+        # convert datetime to string and don't forget about None values
+        data = self.model_dump()
+        for key, value in data.items():
+            if isinstance(value, datetime.datetime):
+                data[key] = value.isoformat()
+            elif isinstance(value, datetime.timedelta):
+                data[key] = str(value)
+            elif isinstance(value, float) and value.is_integer():
+                data[key] = int(value)
+
+        return data

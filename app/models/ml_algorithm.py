@@ -6,6 +6,7 @@ import sqlalchemy.dialects.postgresql as pg
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.schemas.features import MlFeatures
+from app.schemas.algorithm import BacktestResults
 from .base import Base, TimestampMixin
 from .user import User
 
@@ -81,3 +82,5 @@ class AlgorithmBacktest(Base, TimestampMixin):
     version_id: Mapped[int] = mapped_column(
         sa.ForeignKey(AlgorithmVersion.id, ondelete="CASCADE")
     )
+    data: Mapped[dict[str, tp.Any]] = mapped_column(pg.JSON)
+    graph_url: Mapped[str] = mapped_column(sa.Text)
