@@ -23,13 +23,13 @@ class RiskManagementParameters(BaseModel):
 
 
 class AlgorithmBase(BaseModel):
+
     sec_id: str = Field(...)
     name: str = Field(...)
 
 
 class AlgorithmVersionBase(BaseModel):
-
-    features: MlFeatures | None = Field(...)
+    features: MlFeatures | list[dict[str, tp.Any]] | None = Field(...)
     management: RiskManagementParameters = Field(...)
     nodes: list[dict[str, tp.Any]] | None = Field(...)
 
@@ -41,7 +41,8 @@ class AlgorithmVersionUpdate(AlgorithmVersionBase):
 class AlgorithmVersionDto(BaseModel):
     id: int
     uuid: UUID
-    features: MlFeatures = Field(...)
+
+    features: MlFeatures | list[dict[str, tp.Any]] = Field(...)
     management: RiskManagementParameters | None = None
     nodes: tp.Any | None = None
 
@@ -59,10 +60,12 @@ class AlgorithmCreate(AlgorithmBase):
 
 class AlgorithmCreateResponse(AlgorithmBase):
     uuid: UUID
+    algo_type: tp.Literal["ml", "algo"]
 
 
 class AlgorithmDto(AlgorithmBase):
     uuid: UUID
+    algo_type: tp.Literal["ml", "algo"]
     versions: list[AlgorithmVersionDto]
 
     model_config = ConfigDict(

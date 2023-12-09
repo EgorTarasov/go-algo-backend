@@ -21,7 +21,8 @@ class Algorithm(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(autoincrement=True, primary_key=True)
     uuid: Mapped[str] = mapped_column(sa.UUID(as_uuid=True), unique=True, index=True)
-    name: Mapped[str] = mapped_column(sa.String(255))
+    name: Mapped[str] = mapped_column(sa.String(255), default="ml")
+    algo_type: Mapped[tp.Literal["ml", "algo"]] = mapped_column(sa.String(4))
     sec_id: Mapped[str] = mapped_column(sa.String(10))
 
     versions: Mapped[list["AlgorithmVersion"]] = relationship(
@@ -59,7 +60,9 @@ class UserAlgorithm(Base):
 class AlgorithmVersion(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(autoincrement=True, primary_key=True)
     uuid: Mapped[str] = mapped_column(sa.UUID(as_uuid=True), unique=True, index=True)
-    features: Mapped[dict[str, tp.Any]] = mapped_column(pg.JSON, nullable=False)
+    features: Mapped[dict[str, tp.Any] | list[dict[str, tp.Any]]] = mapped_column(
+        pg.JSON, nullable=False
+    )
     management: Mapped[dict[str, tp.Any]] = mapped_column(pg.JSON, nullable=True)
     nodes: Mapped[list[dict[str, tp.Any]]] = mapped_column(pg.JSON, nullable=True)
     algorithm_id: Mapped[int] = mapped_column(

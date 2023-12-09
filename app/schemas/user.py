@@ -16,7 +16,7 @@ class UserLogin(BaseModel):
 class UserCreate(BaseModel):
     first_name: str = Field(..., examples=["Ivan"])
     last_name: str = Field(..., examples=["Ivanov"])
-    email: str = Field(..., examples=["test@]test.com"])
+    email: str = Field(..., examples=["test@test.com"])
     password: str = Field(..., examples=["Test123456"])
     role_id: UserRoles = Field(...)
 

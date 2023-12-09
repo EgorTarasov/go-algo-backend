@@ -32,6 +32,8 @@ GET /a/ml/{UUID}
 
 """
 import datetime
+from email.policy import default
+import json
 import time
 import typing as tp
 import logging
@@ -54,7 +56,7 @@ from GoAlgoMlPart.NewBacktest import NewBacktest
 from GoAlgoMlPart.ModelInference import ModelInference
 from app.schemas.features import MlFeatures
 
-router: tp.Final[APIRouter] = APIRouter(prefix="/ml")
+router: tp.Final[APIRouter] = APIRouter(prefix="/algo")
 
 
 @router.get("/test")
@@ -138,8 +140,9 @@ async def get_algorithms(
     return [algorithm.AlgorithmDto.model_validate(obj) for obj in db_user.algorithms]
 
 
-@router.post("/create")
+@router.post("/{algo_type}/create")
 async def create_algorithm(
+    algo_type: tp.Literal["ml", "algo"],
     payload: algorithm.AlgorithmCreate,
     user: UserTokenData = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
@@ -162,7 +165,10 @@ async def create_algorithm(
         )
     model_uuid = uuid.uuid4()
     db_model: Algorithm = Algorithm(
-        name=payload.name, sec_id=payload.sec_id, uuid=model_uuid
+        algo_type=algo_type,
+        name=payload.name,
+        sec_id=payload.sec_id,
+        uuid=model_uuid,
     )
     db_user.algorithms.append(db_model)
     db.add(db_user)
@@ -170,11 +176,11 @@ async def create_algorithm(
     await db.refresh(db_user)
 
     return algorithm.AlgorithmCreateResponse(
-        uuid=model_uuid, name=payload.name, sec_id=payload.sec_id
+        algo_type=algo_type, uuid=model_uuid, name=payload.name, sec_id=payload.sec_id
     )
 
 
-@router.get("/d/{algorithm_uuid}")
+@router.get("/{algo_type}/d/{algorithm_uuid}")
 async def get_algorithm(
     algorithm_uuid: uuid.UUID,
     user: UserTokenData = Depends(get_current_user),
@@ -195,12 +201,15 @@ async def get_algorithm(
     )
     db_algorithm = (await db.execute(stmt)).unique().scalar()
     if db_algorithm is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
     return algorithm.AlgorithmDto.model_validate(db_algorithm)
 
 
-@router.post("/d/{algorithm_uuid}/{version_uuid}")
+@router.post("/{algo_type}/d/{algorithm_uuid}/{version_uuid}")
 async def update_algorithm(
+    algo_type: tp.Literal["ml", "algo"],
     version_uuid: uuid.UUID,
     payload: algorithm.AlgorithmVersionUpdate,
     algorithm_uuid: uuid.UUID | None = None,
@@ -221,11 +230,26 @@ async def update_algorithm(
     db_algorithm = (await db.execute(stmt)).unique().scalar()
     if db_algorithm is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    # defining features
+    new_features: dict[str, tp.Any] | list[dict[str, tp.Any]]
+
+    if algo_type == "ml" and type(payload.features) == algorithm.MlFeatures:
+
+        new_features = payload.features.model_dump() if payload.features else dict()
+    elif algo_type == "algo" and type(payload.features) == list:
+        new_features = payload.features
+    else:
+        print(type(payload.features), payload.features)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="invalid algo features",
+        )
     if version_uuid is None:
         db_algorithm.versions.append(
             AlgorithmVersion(
                 uuid=version_uuid,
-                features=payload.features.model_dump() if payload.features else {},
+                features=new_features,  # type:ignore
                 management=payload.management.model_dump(),
                 nodes=payload.nodes,
                 algorithm_id=db_algorithm.id,
@@ -238,10 +262,11 @@ async def update_algorithm(
     ]
     print(versions)
     if len(versions) == 0:
+
         db_algorithm.versions.append(
             AlgorithmVersion(
                 uuid=version_uuid,
-                features=payload.features.model_dump() if payload.features else {},
+                features=new_features,
                 management=payload.management.model_dump(),
                 nodes=payload.nodes,
                 algorithm_id=db_algorithm.id,
@@ -249,9 +274,7 @@ async def update_algorithm(
         )
     else:
         index = versions[0]
-        db_algorithm.versions[index].features = (
-            payload.features.model_dump() if payload.features else {}
-        )
+        db_algorithm.versions[index].features = new_features
         db_algorithm.versions[index].management = payload.management.model_dump()
         db_algorithm.versions[index].nodes = payload.nodes if payload.nodes else []
 
@@ -324,8 +347,9 @@ async def train_model(
     return model_path
 
 
-@router.post("/d/{algorithm_uuid}/{version_uuid}/backtest/{period}")
+@router.post("/{algo_type}/d/{algorithm_uuid}/{version_uuid}/backtest/{period}")
 async def run_backtest(
+    algo_type: tp.Literal["ml", "algo"],
     algorithm_uuid: uuid.UUID,
     version_uuid: uuid.UUID,
     background_tasks: BackgroundTasks,
@@ -360,31 +384,47 @@ async def run_backtest(
   }
 
     """
-    model_path = await train_model(
-        db,
-        algorithm_uuid,
-        algorithm.AlgorithmVersionDto.model_validate(version),
-        db_algorithm.sec_id,
-        period,
-    )
+    if algo_type == "ml":
+        model_path = await train_model(
+            db,
+            algorithm_uuid,
+            algorithm.AlgorithmVersionDto.model_validate(version),
+            db_algorithm.sec_id,
+            period,
+        )
 
-    backtest = NewBacktest(
-        "ml_model",
-        model_path,
-        db_algorithm.sec_id,
-        period,
-        0.1,
-        6,
-        version.management["balance"],
-        2,
-        model_features=version.features,
-    )
-    outp = backtest.do_backtest(
-        html_save_path=f"./backtests/{version.uuid}_{datetime.datetime.now().isoformat()}.html"
-    )
+        backtest = NewBacktest(
+            "ml_model",
+            model_path,
+            db_algorithm.sec_id,
+            period,
+            0.1,
+            6,
+            version.management["balance"],
+            2,
+            model_features=version.features,
+        )
+        outp = backtest.do_backtest(
+            html_save_path=f"./backtests/{version.uuid}_{datetime.datetime.now().isoformat()}.html"
+        )
 
-    logging.info(f"ml training: <user={user.user_id} algorithm={version.uuid}>")
-
+        logging.info(f"ml training: <user={user.user_id} algorithm={version.uuid}>")
+    elif algo_type == "algo":
+        backtest = backtest = NewBacktest(
+            "if_model",
+            None,
+            db_algorithm.sec_id,
+            period,
+            0.1,
+            6,
+            version.management["balance"],
+            2,
+            IF_features=version.features
+            # model_features=version.features,
+        )
+        outp = backtest.do_backtest(
+            html_save_path=f"./backtests/{version.uuid}_{datetime.datetime.now().isoformat()}.html"
+        )
     return {"status": "ok"}
 
     # payload: algorithm.AlgorithmVersionDto = (
