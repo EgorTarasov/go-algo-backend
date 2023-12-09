@@ -43,7 +43,7 @@ class JWTEncoder:
         user_id: int,
         email: str,
         role_id: int,
-        expires_delta: dt.timedelta = dt.timedelta(minutes=30),
+        expires_delta: dt.timedelta = dt.timedelta(days=1),
     ) -> str:
         to_encode = {
             "user_id": user_id,
