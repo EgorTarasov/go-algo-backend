@@ -31,9 +31,8 @@ GET /a/ml/{UUID}
 
 
 """
-import datetime
-from email.policy import default
-import json
+import pandas as pd
+import numpy as np
 import time
 import typing as tp
 import logging
@@ -260,7 +259,7 @@ async def update_algorithm(
         for index, obj in enumerate(db_algorithm.versions)
         if obj.uuid == version_uuid
     ]
-    print(versions)
+    # print(versions)
     if len(versions) == 0:
 
         db_algorithm.versions.append(
@@ -277,30 +276,6 @@ async def update_algorithm(
         db_algorithm.versions[index].features = new_features
         db_algorithm.versions[index].management = payload.management.model_dump()
         db_algorithm.versions[index].nodes = payload.nodes if payload.nodes else []
-
-    # elif index := [
-    #     index
-    #     for index, obj in enumerate(db_algorithm.versions)
-    #     if version_uuid == obj.uuid
-    # ]:
-    #     print(index)
-    #     if index:
-    #         index = index[0]
-    #         db_algorithm.versions[index].features = (
-    #             payload.features.model_dump() if payload.features else {}
-    #         )
-    #         db_algorithm.versions[index].management = payload.management.model_dump()
-    #         db_algorithm.versions[index].nodes = payload.nodes if payload.nodes else []
-    #     else:
-    #         db_algorithm.versions.append(
-    #             AlgorithmVersion(
-    #                 uuid=version_uuid,
-    #                 features=payload.features.model_dump() if payload.features else {},
-    #                 management=payload.management.model_dump(),
-    #                 nodes=payload.nodes,
-    #                 algorithm_id=db_algorithm.id,
-    #             )
-    #         )
 
     await db.commit()
     await db.refresh(db_algorithm)
@@ -366,9 +341,10 @@ async def run_backtest(
 
     if db_algorithm is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    version: AlgorithmVersion = [
-        obj for obj in db_algorithm.versions if obj.uuid == version_uuid
-    ][0]
+    versions = [obj for obj in db_algorithm.versions if obj.uuid == version_uuid]
+    if len(versions) == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    version: AlgorithmVersion = versions[0]
     """
       "management": {
     "balance": 0,
@@ -384,7 +360,10 @@ async def run_backtest(
   }
 
     """
-    if algo_type == "ml":
+    outp: pd.Series[tp.Any]
+
+    if db_algorithm.algo_type == "ml":
+
         model_path = await train_model(
             db,
             algorithm_uuid,
@@ -404,12 +383,10 @@ async def run_backtest(
             2,
             model_features=version.features,
         )
-        outp = backtest.do_backtest(
-            html_save_path=f"./backtests/{version.uuid}_{datetime.datetime.now().isoformat()}.html"
-        )
+        outp = backtest.do_backtest(html_save_path=f"./backtests/{version.uuid}.html")
 
         logging.info(f"ml training: <user={user.user_id} algorithm={version.uuid}>")
-    elif algo_type == "algo":
+    elif db_algorithm.algo_type == "algo":
         backtest = backtest = NewBacktest(
             "if_model",
             None,
@@ -422,10 +399,14 @@ async def run_backtest(
             IF_features=version.features
             # model_features=version.features,
         )
-        outp = backtest.do_backtest(
-            html_save_path=f"./backtests/{version.uuid}_{datetime.datetime.now().isoformat()}.html"
-        )
-    return {"status": "ok"}
+        outp = backtest.do_backtest(html_save_path=f"./backtests/{version.uuid}.html")
+    # outp.fillna(None)
+    outp = outp.replace({np.nan: None})
+    # print(outp)
+    return {
+        "status": f"/api/static/{version.uuid}.html",
+        "data": algorithm.BacktestResults.model_validate(outp.to_dict()),
+    }
 
     # payload: algorithm.AlgorithmVersionDto = (
     #     algorithm.AlgorithmVersionDto.model_validate(db_algorithm.versions[-1])

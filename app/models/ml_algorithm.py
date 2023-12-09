@@ -64,7 +64,9 @@ class AlgorithmVersion(Base, TimestampMixin):
         pg.JSON, nullable=False
     )
     management: Mapped[dict[str, tp.Any]] = mapped_column(pg.JSON, nullable=True)
-    nodes: Mapped[list[dict[str, tp.Any]]] = mapped_column(pg.JSON, nullable=True)
+    nodes: Mapped[list[dict[str, tp.Any]] | dict[str, tp.Any]] = mapped_column(
+        pg.JSON, nullable=True
+    )
     algorithm_id: Mapped[int] = mapped_column(
         sa.ForeignKey(Algorithm.id, ondelete="CASCADE")
     )

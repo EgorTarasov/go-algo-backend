@@ -1,3 +1,5 @@
+from ast import alias
+import datetime
 import typing as tp
 from uuid import UUID
 
@@ -31,7 +33,7 @@ class AlgorithmBase(BaseModel):
 class AlgorithmVersionBase(BaseModel):
     features: MlFeatures | list[dict[str, tp.Any]] | None = Field(...)
     management: RiskManagementParameters = Field(...)
-    nodes: list[dict[str, tp.Any]] | None = Field(...)
+    nodes: list[dict[str, tp.Any]] | dict[str, tp.Any] | None = Field(...)
 
 
 class AlgorithmVersionUpdate(AlgorithmVersionBase):
@@ -71,3 +73,79 @@ class AlgorithmDto(AlgorithmBase):
     model_config = ConfigDict(
         from_attributes=True,
     )
+
+
+class BacktestResults(BaseModel):
+
+    """
+    https://github.com/kernc/backtesting.py/blob/master/backtesting/_stats.py
+    Start                     2023-12-07 20:42:00
+    End                       2023-12-08 23:49:00
+    Duration                      1 days 03:07:00
+    Exposure Time [%]                        99.8
+    Equity Final [$]                   9966.33059
+    Equity Peak [$]                  10021.884957
+    Return [%]                          -0.336694
+    Buy & Hold Return [%]               -1.193025
+    Return (Ann.) [%]                  -13.455843
+    Volatility (Ann.) [%]                     NaN
+    Sharpe Ratio                              NaN
+    Sortino Ratio                             0.0
+    Calmar Ratio                              0.0
+    Max. Drawdown [%]                     -0.9311
+    Avg. Drawdown [%]                   -0.362783
+    Max. Drawdown Duration        0 days 16:36:00
+    Avg. Drawdown Duration        0 days 03:23:00
+    # Trades                                  422
+    Win Rate [%]                        52.369668
+    Best Trade [%]                       0.644688
+    Worst Trade [%]                     -0.598451
+    Avg. Trade [%]                       -0.02484
+    Max. Trade Duration           0 days 10:11:00
+    Avg. Trade Duration           0 days 00:50:00
+    Profit Factor                         0.75137
+    Expectancy [%]                      -0.024599
+    SQN                                 -1.847145
+    """
+
+    start: datetime.datetime = Field(..., alias="Start")
+    end: datetime.datetime = Field(..., alias="End")
+    duration: datetime.timedelta = Field(..., alias="Duration")
+    exposure_time: float = Field(..., alias="Exposure Time [%]")
+
+    equity_final: float = Field(..., alias="Equity Final [$]")
+    equity_peak: float = Field(..., alias="Equity Peak [$]")
+    backtest_return: float = Field(..., alias="Return [%]")
+    buy_hold_return: float = Field(..., alias="Buy & Hold Return [%]")
+    return_annualy: float = Field(..., alias="Return (Ann.) [%]")
+
+    violatility: float | None = Field(None, alias="Volatility (Ann.) [%]")
+    sharpe_ratio: float | None = Field(None, alias="Sharpe Ratio")
+    sortino_ratio: float | None = Field(None, alias="Sortino Ratio")
+    calmar_ratio: float | None = Field(None, alias="Calmar Ratio")
+
+    max_drawdown: float | None = Field(None, alias="Max. Drawdown [%]")
+    avg_drawdown: float | None = Field(..., alias="Avg. Drawdown [%]")
+    max_drawdown_duration: datetime.timedelta | None = Field(
+        None, alias="Max. Drawdown Duration"
+    )
+    avg_drawdown_duration: datetime.timedelta | None = Field(
+        None, alias="Avg. Drawdown Duration"
+    )
+    trades: int = Field(..., alias="# Trades")
+    win_rate: float | None = Field(None, alias="Win Rate [%]")
+    best_trade: float | None = Field(None, alias="Best Trade [%]")
+    worst_trade: float | None = Field(None, alias="Worst Trade [%]")
+
+    avg_trade: float | None = Field(None, alias="Avg. Trade [%]")
+    max_trade_duration: datetime.timedelta | None = Field(
+        None, alias="Max. Trade Duration"
+    )
+    avg_trade_duration: datetime.timedelta | None = Field(
+        None, alias="Avg. Trade Duration"
+    )
+    profit_factor: float | None = Field(None, alias="Profit Factor")
+    expentancy: float | None = Field(None, alias="Expectancy [%]")
+    sqn: float | None = Field(..., alias="SQN")
+
+    model_config = ConfigDict(from_attributes=True)
