@@ -24,7 +24,7 @@
 - __Основная технология__: ALGOPACK
 - __Бэкенд__: Python, Fastapi, Postgres
 - __Фронтенд__: React, TypeScript
-- __ML__: python, catboost 🐈, lightgbm
+- __ML__: Python, CatBoost 🐈, LightGBM
 
 ## Команда
 
