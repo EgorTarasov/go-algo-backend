@@ -11,7 +11,7 @@
 
 ## Решение
 
-- Попробовать решение можно перейдя по ссылке <ССЫЛКА>.
+- Попробовать решение можно перейдя по [ссылке](https://larek.itatmisis.ru)
 - Ознакомиться с ML-ной частью решения, бэктестом и метриками можно, перейдя по [ссылке](https://drive.google.com/drive/folders/1Wfvfvy2mr8EGsSFTHDWb87Zifk3EZQo1) (model_backtest_metrics.ipynb)
 
 ## Работа алгоритмов
