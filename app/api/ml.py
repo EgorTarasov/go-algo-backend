@@ -60,7 +60,7 @@ from app.schemas.features import MlFeatures
 router: tp.Final[APIRouter] = APIRouter(prefix="/algo")
 
 
-@router.get("/{algo_type}/d/{algorithm_uuid}/{version_id}")
+@router.get("/data/{algo_type}/d/{algorithm_uuid}/{version_id}")
 async def test(
     algo_type: tp.Literal["ml", "algo"],
     algorithm_uuid: uuid.UUID,
