@@ -16,6 +16,12 @@
   * Пароль Test123456
 - Ознакомиться с ML-ной частью решения, бэктестом и метриками можно, перейдя по [ссылке](https://drive.google.com/drive/folders/1Wfvfvy2mr8EGsSFTHDWb87Zifk3EZQo1) (model_backtest_metrics.ipynb)
 
+## Репозитории
+фронтенд - https://github.com/EgorTarasov/go-algo-frontend
+мл - https://github.com/Kasuich/GoAlgoMlPart/
+
+
+
 ## Работа алгоритмов
 - На выбор дается создание робота на основе ML модели (catboost, lightgbm) или с помощью блоков-сигналов.
 - Пользователь может самостоятельно выбирать необходимые ему признаки для обучения своей ML модели.
