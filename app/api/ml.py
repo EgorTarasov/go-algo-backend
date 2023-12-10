@@ -60,34 +60,33 @@ from app.schemas.features import MlFeatures
 router: tp.Final[APIRouter] = APIRouter(prefix="/algo")
 
 
-@router.get("/test")
-async def test():
+@router.get("/{algo_type}/d/{algorithm_uuid}/{version_id}")
+async def test(
+    algo_type: tp.Literal["ml", "algo"],
+    algorithm_uuid: uuid.UUID,
+    version_id: uuid.UUID,
+    user: UserTokenData = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+):
+    db_version: AlgorithmVersion | None = (
+        (
+            await db.execute(
+                sa.select(AlgorithmVersion)
+                .options(orm.joinedload(AlgorithmVersion.backtests))
+                .where(AlgorithmVersion.uuid == version_id)
+            )
+        )
+        .unique()
+        .scalar_one_or_none()
+    )
+    if db_version is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    start = time.perf_counter()
-    features = {
-        "lags": {"features": ["open", "close", "target"], "period": [1, 2, 3]},
-        "cma": {"features": ["open", "close", "volume"]},
-        "sma": {"features": ["open", "close", "volume"], "period": [2, 3, 4]},
-        "ema": {"features": ["open", "close", "volume"], "period": [2, 3, 4, 10, 15]},
-        "green_candles_ratio": {"period": [2]},
-        "red_candles_ratio": {"period": [2]},
-        "rsi": False,
-        "macd": False,  # только (12, 26)
-        "bollinger": False,
-        "time_features": {
-            "month": True,
-            "week": True,
-            "day_of_month": True,
-            "day_of_week": True,
-            "hour": True,
-            "minute": True,
-        },
-        "anomal_value": True,
-        "anomal_price_changing": True,
-    }
-    # train = Еfeatures=features, ticker="SBER", timeframe="1m")
-    # train.train()
-    return time.perf_counter() - start
+    # return
+    print(db_version.backtests)
+    return [
+        algorithm.BacktestResultsDto.model_validate(obj) for obj in db_version.backtests
+    ]
 
 
 @router.post("/inference/{model_uuid}/{period}")
@@ -416,8 +415,8 @@ async def run_backtest(
     outp = backtest.do_backtest(html_save_path=f"./backtests/{html_path}")
     outp = outp.replace({np.nan: None})
 
-    result = algorithm.BacktestResults.model_validate(outp.to_dict())
-
+    raw = algorithm.BacktestResultsRaw.model_validate(outp.to_dict())
+    result = algorithm.BacktestResults.model_validate(raw)
     db_backtest = AlgorithmBacktest(
         version_id=version.id,
         data=result.serialize(),
@@ -428,5 +427,5 @@ async def run_backtest(
 
     return {
         "status": f"/api/static/{html_path}",
-        "data": result,
+        "data": raw,
     }

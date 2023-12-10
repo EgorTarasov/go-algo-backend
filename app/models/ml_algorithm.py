@@ -6,7 +6,7 @@ import sqlalchemy.dialects.postgresql as pg
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.schemas.features import MlFeatures
-from app.schemas.algorithm import BacktestResults
+from app.schemas.algorithm import BacktestResultsRaw
 from .base import Base, TimestampMixin
 from .user import User
 
@@ -72,7 +72,7 @@ class AlgorithmVersion(Base, TimestampMixin):
         sa.ForeignKey(Algorithm.id, ondelete="CASCADE")
     )
     # algorithm: Mapped[Algorithm] = relationship(Algorithm.id, backref="versions")
-    backtest: Mapped[list["AlgorithmBacktest"]] = relationship(
+    backtests: Mapped[list["AlgorithmBacktest"]] = relationship(
         "AlgorithmBacktest", backref="version"
     )
 
@@ -84,3 +84,6 @@ class AlgorithmBacktest(Base, TimestampMixin):
     )
     data: Mapped[dict[str, tp.Any]] = mapped_column(pg.JSON)
     graph_url: Mapped[str] = mapped_column(sa.Text)
+
+    def __repr__(self) -> str:
+        return f"<AlgorithmBacktest(id={self.id}, version_id={self.version_id})>"

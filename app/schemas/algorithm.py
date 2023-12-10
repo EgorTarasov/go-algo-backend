@@ -1,4 +1,3 @@
-from ast import alias
 import datetime
 import typing as tp
 from uuid import UUID
@@ -7,77 +6,10 @@ from pydantic import BaseModel, Field, ConfigDict
 from .features import MlFeatures
 
 
-class RiskManagementParameters(BaseModel):
-    balance: float = Field(..., description="Баланс")
-    max_balance_for_trading: float = Field(
-        ..., description="Максимальный баланс для торговли"
-    )
-    min_balance_for_trading: float = Field(
-        ..., description="Минимальный баланс для торговли"
-    )
-    part_of_balance_for_buy: float = Field(..., description="Доля баланса для покупки")
-    sum_for_buy_rur: float = Field(..., description="Сумма для покупки в рублях")
-    sum_for_buy_num: float = Field(..., description="Сумма для покупки в количестве")
-    part_of_balance_for_sell: float = Field(..., description="Доля баланса для продажи")
-    sum_for_sell_rur: float = Field(..., description="Сумма для продажи в рублях")
-    sum_for_sell_num: float = Field(..., description="Сумма для продажи в количестве")
-    sell_all: bool = Field(..., description="Продавать все")
-
-
-class AlgorithmBase(BaseModel):
-
-    sec_id: str = Field(...)
-    name: str = Field(...)
-
-
-class AlgorithmVersionBase(BaseModel):
-    features: MlFeatures | list[dict[str, tp.Any]] | None = Field(...)
-    management: RiskManagementParameters = Field(...)
-    nodes: list[dict[str, tp.Any]] | dict[str, tp.Any] | None = Field(...)
-
-
-class AlgorithmVersionUpdate(AlgorithmVersionBase):
-    ...
-
-
-class AlgorithmVersionDto(BaseModel):
-    id: int
-    uuid: UUID
-
-    features: MlFeatures | list[dict[str, tp.Any]] = Field(...)
-    management: RiskManagementParameters | None = None
-    nodes: tp.Any | None = None
-
-    created_at: tp.Optional[tp.Any] = None
-    updated_at: tp.Optional[tp.Any] = None
-
-    model_config = ConfigDict(
-        from_attributes=True,
-    )
-
-
-class AlgorithmCreate(AlgorithmBase):
-    ...
-
-
-class AlgorithmCreateResponse(AlgorithmBase):
-    uuid: UUID
-    algo_type: tp.Literal["ml", "algo"]
-
-
-class AlgorithmDto(AlgorithmBase):
-    uuid: UUID
-    algo_type: tp.Literal["ml", "algo"]
-    versions: list[AlgorithmVersionDto]
-
-    model_config = ConfigDict(
-        from_attributes=True,
-    )
-
-
-class BacktestResults(BaseModel):
+class BacktestResultsRaw(BaseModel):
 
     """
+    Модель для преобразования из формата Backtesting py в формат для сохранения в базу данных
     https://github.com/kernc/backtesting.py/blob/master/backtesting/_stats.py
     Start                     2023-12-07 20:42:00
     End                       2023-12-08 23:49:00
@@ -151,8 +83,9 @@ class BacktestResults(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     def serialize(self) -> dict[str, tp.Any]:
-        # convert datetime to string and don't forget about None values
-        data = self.model_dump()
+        # convert datetime to string and don't forget about None values and save their aliases
+        # data = self.dict(by_alias=True)
+        data = self.model_dump(by_alias=True)
         for key, value in data.items():
             if isinstance(value, datetime.datetime):
                 data[key] = value.isoformat()
@@ -162,3 +95,139 @@ class BacktestResults(BaseModel):
                 data[key] = int(value)
 
         return data
+
+
+class BacktestResults(BaseModel):
+
+    start: datetime.datetime = Field(...)
+    end: datetime.datetime = Field(...)
+    duration: datetime.timedelta = Field(...)
+    exposure_time: float = Field(...)
+
+    equity_final: float = Field(...)
+    equity_peak: float = Field(...)
+    backtest_return: float = Field(...)
+    buy_hold_return: float = Field(...)
+    return_annualy: float = Field(...)
+
+    violatility: float | None = Field(None)
+    sharpe_ratio: float | None = Field(None)
+    sortino_ratio: float | None = Field(None)
+    calmar_ratio: float | None = Field(None)
+
+    max_drawdown: float | None = Field(None)
+    avg_drawdown: float | None = Field(...)
+    max_drawdown_duration: datetime.timedelta | None = Field(None)
+    avg_drawdown_duration: datetime.timedelta | None = Field(None)
+    trades: int = Field(...)
+    win_rate: float | None = Field(None)
+    best_trade: float | None = Field(None)
+    worst_trade: float | None = Field(None)
+
+    avg_trade: float | None = Field(None)
+    max_trade_duration: datetime.timedelta | None = Field(None)
+    avg_trade_duration: datetime.timedelta | None = Field(None)
+    profit_factor: float | None = Field(None)
+    expentancy: float | None = Field(None)
+    sqn: float | None = Field(...)
+
+    model_config = ConfigDict(from_attributes=True)
+
+    def serialize(self) -> dict[str, tp.Any]:
+
+        data = self.model_dump(by_alias=True)
+        for key, value in data.items():
+            if isinstance(value, datetime.datetime):
+                data[key] = value.isoformat()
+            elif isinstance(value, datetime.timedelta):
+                data[key] = str(value)
+            elif isinstance(value, float) and value.is_integer():
+                data[key] = int(value)
+
+        return data
+
+
+class BacktestResultsDto(BaseModel):
+    graph_url: str
+    data: BacktestResults
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RiskManagementParameters(BaseModel):
+    balance: float = Field(..., description="Баланс")
+    max_balance_for_trading: float = Field(
+        ..., description="Максимальный баланс для торговли"
+    )
+    min_balance_for_trading: float = Field(
+        ..., description="Минимальный баланс для торговли"
+    )
+    part_of_balance_for_buy: float = Field(..., description="Доля баланса для покупки")
+    sum_for_buy_rur: float = Field(..., description="Сумма для покупки в рублях")
+    sum_for_buy_num: float = Field(..., description="Сумма для покупки в количестве")
+    part_of_balance_for_sell: float = Field(..., description="Доля баланса для продажи")
+    sum_for_sell_rur: float = Field(..., description="Сумма для продажи в рублях")
+    sum_for_sell_num: float = Field(..., description="Сумма для продажи в количестве")
+    sell_all: bool = Field(..., description="Продавать все")
+
+
+class AlgorithmBase(BaseModel):
+
+    sec_id: str = Field(...)
+    name: str = Field(...)
+
+
+class AlgorithmVersionBase(BaseModel):
+    features: MlFeatures | list[dict[str, tp.Any]] | None = Field(...)
+    management: RiskManagementParameters = Field(...)
+    nodes: list[dict[str, tp.Any]] | dict[str, tp.Any] | None = Field(...)
+
+
+class AlgorithmVersionUpdate(AlgorithmVersionBase):
+    ...
+
+
+class AlgorithmSeachResult(BaseModel):
+    uuid: UUID
+    sec_id: str
+    name: str
+    algo_type: tp.Literal["ml", "algo"]
+
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
+
+
+class AlgorithmVersionDto(BaseModel):
+    id: int
+    uuid: UUID
+
+    features: MlFeatures | list[dict[str, tp.Any]] = Field(...)
+    management: RiskManagementParameters | None = None
+    nodes: tp.Any | None = None
+
+    created_at: tp.Optional[tp.Any] = None
+    updated_at: tp.Optional[tp.Any] = None
+
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
+
+
+class AlgorithmCreate(AlgorithmBase):
+    ...
+
+
+class AlgorithmCreateResponse(AlgorithmBase):
+    uuid: UUID
+    algo_type: tp.Literal["ml", "algo"]
+
+
+class AlgorithmDto(AlgorithmBase):
+    uuid: UUID
+    algo_type: tp.Literal["ml", "algo"]
+    versions: list[AlgorithmVersionDto]
+
+    model_config = ConfigDict(
+        from_attributes=True,
+    )

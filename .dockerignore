@@ -5,3 +5,5 @@ __pycache__
 .vscode/
 .mypy_cache/
 catboost_info/
+.models/    
+.backtests/
